@@ -1,6 +1,7 @@
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/init.h>
+#include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/slab.h>
@@ -36,10 +37,12 @@ static DEFINE_MUTEX(xoroshiro128p_mutex);
 static int dev_open(struct inode *, struct file *);
 static int dev_release(struct inode *, struct file *);
 static ssize_t dev_read(struct file *, char *, size_t, loff_t *);
+static ssize_t dev_write(struct file *, const char *, size_t size, loff_t *);
 static struct file_operations fops = {
     .open = dev_open,
     .read = dev_read,
     .release = dev_release,
+    .write = dev_write,
 };
 
 #define TEST_LEN 1000
@@ -47,6 +50,18 @@ static struct file_operations fops = {
 static int __init cmpint(const void *a, const void *b)
 {
     return *(int *) a - *(int *) b;
+}
+
+
+static int __init cmpuint64(const void *a, const void *b)
+{
+    uint64_t a_val = *(uint64_t *) a;
+    uint64_t b_val = *(uint64_t *) b;
+    if (a_val > b_val)
+        return 1;
+    if (a_val == b_val)
+        return 0;
+    return -1;
 }
 
 /** @brief Initialize /dev/xoroshiro128p.
@@ -141,6 +156,7 @@ static int dev_open(struct inode *inodep, struct file *filep)
     return 0;
 }
 
+static ktime_t kt;
 /** @brief Called whenever device is read from user space.
  *  @param filep Pointer to a file object (defined in linux/fs.h).
  *  @param buffer Pointer to the buffer to which this function may write data.
@@ -153,11 +169,24 @@ static ssize_t dev_read(struct file *filep,
                         size_t len,
                         loff_t *offset)
 {
-    /* Give at most 8 bytes per read */
     size_t len_ = (len > 8) ? 8 : len;
+    uint64_t value;
+    uint64_t sizes[TEST_LEN];
+    for (int i = 0; i < TEST_LEN; i++) {
+        sizes[i] = next();
+        value = sizes[i];
+    }
 
-    uint64_t value = next(); /* in xoroshiro128plus.c */
+    //    for(int i = 0; i < TEST_LEN; i++)
+    //        printk("%d, %llu ",i, sizes[i]);
+    /* Give at most 8 bytes per read */
+    //    uint64_t value = next(); /* in xoroshiro128plus.c */
 
+    kt = ktime_get();
+    // sort
+    sort_impl(sizes, TEST_LEN, sizeof(*sizes), cmpuint64, NULL);
+    kt = ktime_sub(ktime_get(), kt);
+    printk(" %llu\n", kt);
     /* copy_to_user has the format ( * to, *from, size) and ret 0 on success */
     int n_notcopied = copy_to_user(buffer, (char *) (&value), len_);
 
@@ -166,8 +195,16 @@ static ssize_t dev_read(struct file *filep,
                len_);
         return -EFAULT;
     }
+//    for(int i = 0; i < TEST_LEN; i++)
+//        printk("%d, %llu ",i, sizes[i]);
+#define ESORT 999
+    for (int i = 0; i < TEST_LEN - 1; i++)
+        if (sizes[i] > sizes[i + 1]) {
+            pr_err("test has failed\n");
+            return -ESORT;
+        }
     printk(KERN_INFO "XORO: read %ld bytes\n", len_);
-    return len_;
+    return ktime_to_ns(kt);
 }
 
 /** @brief Called when the userspace program calls close().
@@ -182,3 +219,12 @@ static int dev_release(struct inode *inodep, struct file *filep)
 
 module_init(xoro_init);
 module_exit(xoro_exit);
+
+static ssize_t dev_write(struct file *file,
+                         const char *buf,
+                         size_t size,
+                         loff_t *offset)
+{
+    printk(" %llu\n", kt);
+    return ktime_to_ns(kt);
+}
