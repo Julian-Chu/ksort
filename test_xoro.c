@@ -20,7 +20,6 @@ void zero_rx(void)
 
 int main(int argc, char *argv[])
 {
-    //    int fd = open("/dev/xoroshiro128p", O_RDONLY);
     int fd = open("/dev/xoroshiro128p", O_RDWR);
     if (0 > fd) {
         perror("Failed to open the device.");
@@ -49,8 +48,8 @@ int main(int argc, char *argv[])
             unsigned char b = rx[b_idx];
             value_ |= ((uint64_t) b << (8 * b_idx));
         }
-        printf("n_bytes=%d n_bytes_read=%ld value=%016lx\n", n_bytes,
-               n_bytes_read, value_);
+
+        // get sorting time
         long long kt = write(fd, write_buf, strlen(write_buf));
         if (kt < 0) {
             perror("Failed to write the message to the device.");

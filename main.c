@@ -171,22 +171,20 @@ static ssize_t dev_read(struct file *filep,
 {
     size_t len_ = (len > 8) ? 8 : len;
     uint64_t value;
+
+    // generate data to sort
     uint64_t sizes[TEST_LEN];
     for (int i = 0; i < TEST_LEN; i++) {
         sizes[i] = next();
         value = sizes[i];
     }
 
-    //    for(int i = 0; i < TEST_LEN; i++)
-    //        printk("%d, %llu ",i, sizes[i]);
-    /* Give at most 8 bytes per read */
-    //    uint64_t value = next(); /* in xoroshiro128plus.c */
-
+    // measure sorting time
     kt = ktime_get();
-    // sort
     sort_impl(sizes, TEST_LEN, sizeof(*sizes), cmpuint64, NULL);
     kt = ktime_sub(ktime_get(), kt);
     printk(" %llu\n", kt);
+
     /* copy_to_user has the format ( * to, *from, size) and ret 0 on success */
     int n_notcopied = copy_to_user(buffer, (char *) (&value), len_);
 
@@ -195,8 +193,7 @@ static ssize_t dev_read(struct file *filep,
                len_);
         return -EFAULT;
     }
-//    for(int i = 0; i < TEST_LEN; i++)
-//        printk("%d, %llu ",i, sizes[i]);
+
 #define ESORT 999
     for (int i = 0; i < TEST_LEN - 1; i++)
         if (sizes[i] > sizes[i + 1]) {
@@ -204,7 +201,7 @@ static ssize_t dev_read(struct file *filep,
             return -ESORT;
         }
     printk(KERN_INFO "XORO: read %ld bytes\n", len_);
-    return ktime_to_ns(kt);
+    return len_;
 }
 
 /** @brief Called when the userspace program calls close().

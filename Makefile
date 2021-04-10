@@ -42,6 +42,8 @@ check: all
 	$(MAKE) unload
 	sudo dmesg -C
 	$(MAKE) load
-	@sudo ./test_xoro && $(call pass)
+	@sudo ./test_xoro >./test_xoro_time && $(call pass)
 	@dmesg | grep "test passed" >/dev/null && $(call pass)
 	$(MAKE) unload
+	@gnuplot ./scripts/plot.gp
+	@eog test_xoro_time.png
