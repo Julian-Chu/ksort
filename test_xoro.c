@@ -5,58 +5,33 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
-#define MAX_BYTES_PER_READ 8
-static unsigned char rx[MAX_BYTES_PER_READ]; /* Receive buffer from the LKM */
-
-void zero_rx(void)
-{
-    for (int b_idx = 0; b_idx < MAX_BYTES_PER_READ; b_idx++) {
-        rx[b_idx] = 0;
-    }
-}
 
 int main(int argc, char *argv[])
 {
+    uint64_t *times = malloc(sizeof(uint64_t) * 8);
     int fd = open("/dev/xoroshiro128p", O_RDWR);
     if (0 > fd) {
         perror("Failed to open the device.");
+        free(times);
         return errno;
     }
 
-    char write_buf[] = "testing writing";
     /* Test reading different numbers of bytes */
-    for (int n_bytes = 0; n_bytes < 10; n_bytes++) {
-        /* Clear/zero the buffer before copying in read data */
-        zero_rx();
-
-        /* Read the response from the LKM */
-        ssize_t n_bytes_read = read(fd, rx, n_bytes);
+    for (int i = 0; i < 10; i++) {
+        ssize_t n_bytes_read = read(fd, times, 8);
 
         if (0 > n_bytes_read) {
             perror("Failed to read all bytes.");
+            free(times);
             return errno;
         }
 
-        uint64_t value_ = 0;
-        // uint64_t 8 bytes <-> char *
-        // char 1 byte
-        // little endian
-        for (int b_idx = 0; b_idx < n_bytes_read; b_idx++) {
-            unsigned char b = rx[b_idx];
-            value_ |= ((uint64_t) b << (8 * b_idx));
-        }
-
-        // get sorting time
-        long long kt = write(fd, write_buf, strlen(write_buf));
-        if (kt < 0) {
-            perror("Failed to write the message to the device.");
-            return errno;
-        }
-        printf("%d %lld\n", n_bytes, kt);
+        printf("%d %lu %lu %lu %lu %lu %lu %lu %lu\n", i, times[0], times[1],
+               times[2], times[3], times[4], times[5], times[6], times[7]);
     }
 
+    free(times);
     return 0;
 }

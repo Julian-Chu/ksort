@@ -12,6 +12,31 @@
 #define DEVICE_NAME "xoroshiro128p"
 #define CLASS_NAME "xoro"
 
+/* sort */
+#define SORT_NAME ksort
+#define SORT_TYPE uint64_t
+#define MIN(x, y) (((x) < (y) ? (x) : (y)))
+#define SORT_CSWAP(x, y)                           \
+    {                                              \
+        SORT_TYPE _sort_swap_temp = MAX((x), (y)); \
+        (x) = MIN((x), (y));                       \
+        (y) = _sort_swap_temp;                     \
+    }
+#include "sort.h"
+
+/*
+   We now have the following functions defined
+   * ksort_shell_sort
+   * ksort_binary_insertion_sort
+   * ksort_heap_sort
+   * ksort_quick_sort
+   * ksort_merge_sort
+   * ksort_selection_sort
+   * ksort_tim_sort
+
+   Each takes two arguments: uint64_t *array, size_t size
+*/
+
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("National Cheng Kung University, Taiwan");
 MODULE_DESCRIPTION("sorting implementation");
@@ -46,6 +71,7 @@ static struct file_operations fops = {
 };
 
 #define TEST_LEN 1000
+//#define TEST_LEN 2000
 
 static int __init cmpint(const void *a, const void *b)
 {
@@ -170,36 +196,172 @@ static ssize_t dev_read(struct file *filep,
                         loff_t *offset)
 {
     size_t len_ = (len > 8) ? 8 : len;
-    uint64_t value;
+    uint64_t *times = kmalloc(sizeof(uint64_t) * 8, GFP_KERNEL);
 
+    enum sorttyp {
+        k_sort = 0,
+        shell_sort,
+        binary_insertion_sort,
+        heap_sort,
+        quick_sort,
+        merge_sort,
+        selection_sort,
+        tim_sort
+    };
     // generate data to sort
-    uint64_t sizes[TEST_LEN];
+    uint64_t *src = kmalloc(sizeof(uint64_t) * TEST_LEN, GFP_KERNEL);
+    uint64_t *dst = kmalloc(sizeof(uint64_t) * TEST_LEN, GFP_KERNEL);
     for (int i = 0; i < TEST_LEN; i++) {
-        sizes[i] = next();
-        value = sizes[i];
+        src[i] = next();
     }
 
+    memcpy(dst, src, sizeof(uint64_t) * TEST_LEN);
     // measure sorting time
     kt = ktime_get();
-    sort_impl(sizes, TEST_LEN, sizeof(*sizes), cmpuint64, NULL);
-    kt = ktime_sub(ktime_get(), kt);
-    printk(" %llu\n", kt);
+    sort_impl(dst, TEST_LEN, sizeof(*src), cmpuint64, NULL);
+    times[(int) k_sort] = ktime_sub(ktime_get(), kt);
+    printk(KERN_INFO " %llu\n", kt);
 
+#define ESORT 999
+    for (int i = 0; i < TEST_LEN - 1; i++)
+        if (dst[i] > dst[i + 1]) {
+            pr_err("test has failed with k_sort\n");
+            kfree(src);
+            kfree(dst);
+            return -ESORT;
+        }
+
+
+    // shell sort
+    memcpy(dst, src, sizeof(uint64_t) * TEST_LEN);
+    kt = ktime_get();
+    ksort_shell_sort(dst, TEST_LEN);
+    times[(int) shell_sort] = ktime_sub(ktime_get(), kt);
+    printk(KERN_INFO " %llu\n", kt);
+
+    for (int i = 0; i < TEST_LEN - 1; i++)
+        if (dst[i] > dst[i + 1]) {
+            pr_err("test has failed with shell_sort\n");
+            kfree(src);
+            kfree(dst);
+            return -ESORT;
+        }
+
+    // binary insertion sort
+    memcpy(dst, src, sizeof(uint64_t) * TEST_LEN);
+    kt = ktime_get();
+    ksort_binary_insertion_sort(dst, TEST_LEN);
+    times[(int) binary_insertion_sort] = ktime_sub(ktime_get(), kt);
+    printk(KERN_INFO " %llu\n", kt);
+
+    for (int i = 0; i < TEST_LEN - 1; i++)
+        if (dst[i] > dst[i + 1]) {
+            pr_err("test has failed with binary_insertion_sort\n");
+            kfree(src);
+            kfree(dst);
+            return -ESORT;
+        }
+
+
+    // heap sort
+    memcpy(dst, src, sizeof(uint64_t) * TEST_LEN);
+    kt = ktime_get();
+    ksort_heap_sort(dst, TEST_LEN);
+    times[(int) heap_sort] = ktime_sub(ktime_get(), kt);
+    printk(KERN_INFO " %llu\n", kt);
+
+    for (int i = 0; i < TEST_LEN - 1; i++)
+        if (dst[i] > dst[i + 1]) {
+            pr_err("test has failed with heap_sort\n");
+            kfree(src);
+            kfree(dst);
+            kfree(times);
+            return -ESORT;
+        }
+
+
+    // quick sort
+    memcpy(dst, src, sizeof(uint64_t) * TEST_LEN);
+    kt = ktime_get();
+    ksort_quick_sort(dst, TEST_LEN);
+    times[(int) quick_sort] = ktime_sub(ktime_get(), kt);
+    printk(KERN_INFO " %llu\n", kt);
+
+    for (int i = 0; i < TEST_LEN - 1; i++)
+        if (dst[i] > dst[i + 1]) {
+            pr_err("test has failed with quick_sort\n");
+            kfree(src);
+            kfree(dst);
+            kfree(times);
+            return -ESORT;
+        }
+
+
+    // merge sort
+    memcpy(dst, src, sizeof(uint64_t) * TEST_LEN);
+    kt = ktime_get();
+    ksort_merge_sort(dst, TEST_LEN);
+    times[(int) merge_sort] = ktime_sub(ktime_get(), kt);
+    printk(KERN_INFO " %llu\n", kt);
+
+    for (int i = 0; i < TEST_LEN - 1; i++)
+        if (dst[i] > dst[i + 1]) {
+            pr_err("test has failed with merge_sort\n");
+            kfree(src);
+            kfree(dst);
+            kfree(times);
+            return -ESORT;
+        }
+
+    // selection sort
+    memcpy(dst, src, sizeof(uint64_t) * TEST_LEN);
+    kt = ktime_get();
+    ksort_selection_sort(dst, TEST_LEN);
+    times[(int) selection_sort] = ktime_sub(ktime_get(), kt);
+    printk(KERN_INFO " %llu\n", kt);
+
+    for (int i = 0; i < TEST_LEN - 1; i++)
+        if (dst[i] > dst[i + 1]) {
+            pr_err("test has failed with merge_sort\n");
+            kfree(src);
+            kfree(dst);
+            kfree(times);
+            return -ESORT;
+        }
+
+    // tim sort
+    memcpy(dst, src, sizeof(uint64_t) * TEST_LEN);
+    kt = ktime_get();
+    ksort_tim_sort(dst, TEST_LEN);
+    times[(int) tim_sort] = ktime_sub(ktime_get(), kt);
+    printk(KERN_INFO " %llu\n", kt);
+
+    for (int i = 0; i < TEST_LEN - 1; i++)
+        if (dst[i] > dst[i + 1]) {
+            pr_err("test has failed with merge_sort\n");
+            kfree(src);
+            kfree(dst);
+            kfree(times);
+            return -ESORT;
+        }
+
+    kfree(src);
+    kfree(dst);
+    pr_info("test passed\n");
+    for (int i = 0; i < 8; ++i) {
+        printk(KERN_INFO "%llu ns\n", times[i]);
+    }
     /* copy_to_user has the format ( * to, *from, size) and ret 0 on success */
-    int n_notcopied = copy_to_user(buffer, (char *) (&value), len_);
+    int n_notcopied =
+        copy_to_user(buffer, (void *) (times), sizeof(uint64_t) * 8);
 
+    kfree(times);
     if (0 != n_notcopied) {
         printk(KERN_ALERT "XORO: Failed to read %d/%ld bytes\n", n_notcopied,
                len_);
         return -EFAULT;
     }
 
-#define ESORT 999
-    for (int i = 0; i < TEST_LEN - 1; i++)
-        if (sizes[i] > sizes[i + 1]) {
-            pr_err("test has failed\n");
-            return -ESORT;
-        }
     printk(KERN_INFO "XORO: read %ld bytes\n", len_);
     return len_;
 }

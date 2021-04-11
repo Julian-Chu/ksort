@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-CPPCHECK_suppresses="--suppress=missingIncludeSystem -i ksort.mod.c"
-CPPCHECK_OPTS="-I. --enable=all --error-exitcode=1 --force $CPPCHECK_suppresses ."
+CPPCHECK_suppresses="--suppress=missingIncludeSystem -i ksort.mod.c --suppress=variableScope -i sort.h --suppress=redundantAssignment -i sort.h"
+CPPCHECK_OPTS=" -I. --enable=all --error-exitcode=1  --force $CPPCHECK_suppresses ."
 
 RETURN=0
 CLANG_FORMAT=$(which clang-format)
